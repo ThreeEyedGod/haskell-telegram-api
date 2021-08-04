@@ -37,7 +37,7 @@ import           Servant.API
 import           Servant.Client
 import qualified Servant.Client.Core                   as Core
 import           Servant.Client.Internal.HttpClient    (catchConnectionError, clientResponseToResponse,
-                                                        requestToClientRequest)
+                                                        defaultMakeClientRequest)
 
 -- | A type that can be converted to a multipart/form-data value.
 class ToMultipartFormData a where
@@ -52,21 +52,21 @@ instance (Core.RunClient m, ToMultipartFormData b, MimeUnrender ct a, cts' ~ (ct
   ) => HasClient m (MultipartFormDataReqBody b :> Post cts' a) where
   type Client m (MultipartFormDataReqBody b :> Post cts' a) = b-> ClientM a
   clientWithRoute _pm Proxy req reqData =
-    let requestToClientRequest' req' baseurl' = do
-          let requestWithoutBody = requestToClientRequest baseurl' req'
+    let defaultMakeClientRequest' req' baseurl' = do
+          let requestWithoutBody = defaultMakeClientRequest baseurl' req'
           formDataBody (toMultipartFormData reqData) requestWithoutBody
-    in snd <$> performRequestCT' requestToClientRequest' (Proxy :: Proxy ct) H.methodPost req
+    in snd <$> performRequestCT' defaultMakeClientRequest' (Proxy :: Proxy ct) H.methodPost req
 
--- copied `performRequest` from servant-0.11, then modified so it takes a variant of `requestToClientRequest`
+-- copied `performRequest` from servant-0.11, then modified so it takes a variant of `defaultMakeClientRequest`
 -- as an argument.
 performRequest' :: (Core.Request -> BaseUrl -> IO Request)
                -> Method -> Core.Request
                -> ClientM ( Int, ByteString, MediaType
                           , [HTTP.Header], Client.Response ByteString)
-performRequest' requestToClientRequest' reqMethod req = do
+performRequest' defaultMakeClientRequest' reqMethod req = do
   m <- asks manager
   reqHost <- asks baseUrl
-  partialRequest <- liftIO $ requestToClientRequest' req reqHost
+  partialRequest <- liftIO $ defaultMakeClientRequest' req reqHost
 
   let request = partialRequest { Client.method = reqMethod }
 
@@ -91,16 +91,16 @@ performRequest' requestToClientRequest' reqMethod req = do
         throwError $ FailureResponse builtReq coreResponse
       return (status_code, body, ct, hdrs, response)
 
--- copied `performRequestCT` from servant-0.11, then modified so it takes a variant of `requestToClientRequest`
+-- copied `performRequestCT` from servant-0.11, then modified so it takes a variant of `defaultMakeClientRequest`
 -- as an argument.
 performRequestCT' :: MimeUnrender ct result =>
     (Core.Request -> BaseUrl -> IO Request)
     -> Proxy ct -> Method -> Core.Request
     -> ClientM ([HTTP.Header], result)
-performRequestCT' requestToClientRequest' ct reqMethod req = do
+performRequestCT' defaultMakeClientRequest' ct reqMethod req = do
   let acceptCTS = contentTypes ct
   (_status, respBody, respCT, hdrs, _response) <-
-    performRequest' requestToClientRequest' reqMethod (req { Core.requestAccept = Sequence.fromList $ NonEmpty.toList acceptCTS })
+    performRequest' defaultMakeClientRequest' reqMethod (req { Core.requestAccept = Sequence.fromList $ NonEmpty.toList acceptCTS })
   let coreResponse = clientResponseToResponse id _response
   unless (any (matches respCT) acceptCTS) $ throwError $ UnsupportedContentType respCT coreResponse
   case mimeUnrender ct respBody of

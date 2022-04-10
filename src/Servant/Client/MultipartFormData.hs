@@ -30,7 +30,7 @@ import           Network.HTTP.Client                   hiding (Proxy)
 import qualified Network.HTTP.Client                   as Client
 import           Network.HTTP.Client.MultipartFormData
 import           Network.HTTP.Media
-import           Network.HTTP.Media ((//))
+import           Network.HTTP.Media ((//))             as N
 import           Network.HTTP.Types
 import qualified Network.HTTP.Types                    as H
 import qualified Network.HTTP.Types.Header             as HTTP
@@ -83,7 +83,7 @@ performRequest' defaultMakeClientRequest' reqMethod req = do
           status_code = statusCode status
           coreResponse = clientResponseToResponse id response
       ct <- case lookup "Content-Type" $ Client.responseHeaders response of
-                 Nothing -> pure $ "application"//"octet-stream"
+                 Nothing -> pure $ "application"N.//"octet-stream"
                  Just t -> case parseAccept t of
                    Nothing -> throwError $ InvalidContentTypeHeader coreResponse
                    Just t' -> pure t'
